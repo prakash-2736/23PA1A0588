@@ -370,3 +370,73 @@ Overall, I would combine **pagination + Redis cache + unread count endpoint + We
 
 
 
+
+
+## Stage 5 - Reliable bulk notification delivery
+
+
+The current approach is weak because it processes all students one by one in a single loop and directly mixes email sending, DB writes, and app push. With 50,000 students this becomes slow, hard to retry, and partial failures are difficult to handle.
+
+
+### Shortcomings in the current approach
+
+
+- Everything runs synchronously inside one loop
+- If `send_email()` fails midway, some students get email and some do not
+- No retry mechanism for failed email/app delivery
+- DB write and email sending are tightly coupled
+- Hard to scale for 50,000 users
+- No delivery status tracking
+
+
+### Better design
+
+
+1. Save notification records first in DB with status like `PENDING`
+2. Publish jobs to a queue (Kafka / RabbitMQ / BullMQ / SQS)
+3. Separate workers handle:
+   - email delivery
+   - in-app push delivery
+4. On success, update delivery status as `SENT`
+5. On failure, mark as `FAILED` and retry with backoff
+6. Keep idempotency using `notificationId + studentId + channel`
+
+
+### Should DB save and email send happen together?
+
+
+No. They should be decoupled.
+
+
+- **DB save** is the source of truth that notification exists
+- **Email / push** are delivery channels that may fail and can be retried separately
+
+
+If both are tightly coupled, one email failure can break the whole flow. Saving first and delivering asynchronously is safer and faster.
+
+
+### Revised pseudocode
+
+
+```js
+function notifyAll(studentIds, message, type) {
+  const notificationId = createNotificationBatch(message, type);
+
+
+  for (const studentId of studentIds) {
+    saveNotificationToDB({
+      notificationId,
+      studentId,
+      message,
+      type,
+      status: "PENDING"
+    });
+
+
+    enqueueEmailJob({ notificationId, studentId, message });
+    enqueuePushJob({ notificationId, studentId, message });
+  }
+}
+
+
+
