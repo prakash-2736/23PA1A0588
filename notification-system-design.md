@@ -323,4 +323,50 @@ WHERE n.notificationType = 'Placement'
   AND n.createdAt >= NOW() - INTERVAL 7 DAY;
 ```
 
+## Stage 4 - Reducing DB Load on Every Page Load
+
+Fetching notifications from DB on every page load for every student will not scale well. It increases repeated reads, adds unnecessary DB load, and slows down the UI.
+
+### Suggested improvements
+
+1. **Pagination / limit-based fetch**
+   - Fetch only the latest notifications first instead of loading the full history.
+   - Example: load latest 20 notifications and fetch more on scroll.
+
+2. **Caching**
+   - Cache recent notification lists and unread counts in Redis.
+   - Frequent reads can be served from cache instead of hitting the database every time.
+
+3. **Real-time push instead of repeated fetch**
+   - Use WebSocket / SSE so the frontend gets only new notifications instead of refetching everything on each page load.
+
+4. **Separate unread count API**
+   - Keep a lightweight API for unread count instead of loading the full notification list just to show a badge.
+
+5. **Indexes + optimized queries**
+   - Use indexes on `(studentId, isRead)` and time columns to reduce query cost.
+
+---
+
+### Performance approach
+
+- Initial page load → fetch latest 20 notifications
+- Badge/unread count → fetch from cached unread count API
+- New notifications → push via WebSocket
+- Older notifications → load on demand with pagination
+
+---
+
+### Tradeoffs
+
+- **Pagination** reduces load, but older notifications need extra requests.
+- **Caching** improves speed, but cache invalidation must be handled properly.
+- **WebSocket** reduces polling overhead, but adds connection management complexity.
+- **Separate unread count API** is fast, but adds one more endpoint to maintain.
+
+Overall, I would combine **pagination + Redis cache + unread count endpoint + WebSocket for live updates**. This keeps page loads fast and avoids overwhelming the DB.
+
+
+
+
 
