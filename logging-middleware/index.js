@@ -1,6 +1,11 @@
 const LOG_API_URL = "http://20.244.56.144/evaluation-service/logs";
 
 async function Log(stack, level, pkg, message, token) {
+  if (!token) {
+    console.error("AFFORD_TOKEN not provided for logging");
+    return null;
+  }
+
   try {
     const response = await fetch(LOG_API_URL, {
       method: "POST",
@@ -27,4 +32,4 @@ async function Log(stack, level, pkg, message, token) {
   }
 }
 
-export { Log };
+module.exports = { Log };

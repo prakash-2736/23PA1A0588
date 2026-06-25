@@ -440,3 +440,22 @@ function notifyAll(studentIds, message, type) {
 
 
 
+
+
+## Stage 6 - Priority Inbox Implementation
+
+For Stage 6, I implemented a backend script that fetches notifications from the provided API and returns the top 10 priority notifications.
+
+### Approach
+- Fetched all notifications from the given notifications API
+- Assigned priority based on:
+  - **type weight** → `Placement > Result > Event`
+  - **recency** → newer notifications rank higher within the same type
+- Computed a combined score using notification type and timestamp
+- Sorted notifications by score in descending order
+- Returned the top 10 notifications
+
+### Notes
+- The implementation is in `notification-app-be/priorityInbox.js`
+- Since the notifications are fetched as a list, sorting and taking the top 10 was sufficient for this stage
+- If notifications were arriving continuously in real time, a min-heap of size 10 could be used to maintain the top notifications efficiently
