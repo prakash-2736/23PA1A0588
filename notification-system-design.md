@@ -153,3 +153,97 @@ Logging should be added for:
 
 ---
 
+## Stage 2 - Database Design
+
+### DB choice
+
+I would use **PostgreSQL** because the system has structured data and clear relations between students, notifications, and read status. It also supports joins, indexing, and filtering well.
+
+---
+
+### Schema
+
+#### students
+
+* `id`
+* `rollNumber`
+* `name`
+* `email`
+
+#### notifications
+
+* `id`
+* `notificationType` (`Placement`, `Event`, `Result`)
+* `title`
+* `message`
+* `createdAt`
+
+#### student_notifications
+
+* `id`
+* `studentId`
+* `notificationId`
+* `isRead`
+* `readAt`
+* `deliveredAt`
+
+---
+
+### Why this schema
+
+* `notifications` stores the actual notification content
+* `student_notifications` stores which student received it and whether it was read
+* this avoids duplicating full notification content for every student
+
+---
+
+### Example queries
+
+#### Create notification
+
+```sql
+INSERT INTO notifications (notificationType, title, message, createdAt)
+VALUES ('Placement', 'Placement Drive Update', 'TCS Ninja drive on Friday', NOW());
+```
+
+#### Map notification to students
+
+```sql
+INSERT INTO student_notifications (studentId, notificationId, isRead, deliveredAt)
+VALUES (101, 5001, false, NOW());
+```
+
+#### Get unread notifications
+
+```sql
+SELECT n.id, n.notificationType, n.title, n.message, n.createdAt
+FROM student_notifications sn
+JOIN notifications n ON n.id = sn.notificationId
+WHERE sn.studentId = 101 AND sn.isRead = false
+ORDER BY n.createdAt DESC;
+```
+
+#### Mark one notification as read
+
+```sql
+UPDATE student_notifications
+SET isRead = true, readAt = NOW()
+WHERE studentId = 101 AND notificationId = 5001;
+```
+
+---
+
+### Problems at scale
+
+* unread queries may become slow
+* sorting by latest notifications may become expensive
+* `student_notifications` can grow very large
+
+---
+
+### Solutions
+
+* add indexes on `studentId`, `notificationId`, `isRead`, `createdAt`
+* use pagination for notification listing
+* use batch inserts when sending one notification to many students
+
