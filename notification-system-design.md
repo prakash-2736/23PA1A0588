@@ -247,3 +247,80 @@ WHERE studentId = 101 AND notificationId = 5001;
 * use pagination for notification listing
 * use batch inserts when sending one notification to many students
 
+
+## Stage 3 - Query Review and Optimization
+
+Given query:
+
+```sql id="gaxg6y"
+SELECT * 
+FROM notifications
+WHERE studentID = 1042 AND isRead = false
+ORDER BY createdAt ASC;
+```
+
+### Is this query accurate?
+
+It is only accurate if the table stores **one notification row per student**. In the Stage 2 schema, read status is student-specific, so `isRead` should be in `student_notifications`, not directly in `notifications`.
+
+---
+
+### Why is it slow?
+
+* may scan many rows if there is no proper index
+* `SELECT *` fetches unnecessary columns
+* sorting by `createdAt` adds extra cost
+* using one large table for both notification data and read status is not ideal
+
+---
+
+### Better query
+
+```sql id="idq2qe"
+SELECT n.id, n.notificationType, n.title, n.message, n.createdAt
+FROM student_notifications sn
+JOIN notifications n ON n.id = sn.notificationId
+WHERE sn.studentId = 1042
+  AND sn.isRead = false
+ORDER BY n.createdAt DESC;
+```
+
+---
+
+### Recommended indexes
+
+```sql id="0zvzwf"
+CREATE INDEX idx_student_notifications_student_read
+ON student_notifications(studentId, isRead);
+
+CREATE INDEX idx_notifications_createdat
+ON notifications(createdAt DESC);
+```
+
+---
+
+### Cost
+
+* without index → close to full scan, around **O(N)** + sorting cost
+* with index → lookup becomes much faster, closer to **O(log N)** for filtering
+
+---
+
+### Should we index every column?
+
+No. Indexing every column increases storage and slows inserts/updates.
+Indexes should be added only for columns frequently used in `WHERE`, `JOIN`, and `ORDER BY`.
+
+---
+
+### Query to find students who got a Placement notification in last 7 days
+
+```sql id="oz6gya"
+SELECT DISTINCT sn.studentId
+FROM student_notifications sn
+JOIN notifications n ON n.id = sn.notificationId
+WHERE n.notificationType = 'Placement'
+  AND n.createdAt >= NOW() - INTERVAL 7 DAY;
+```
+
+
