@@ -1,20 +1,68 @@
-import { useState, useEffect } from "react";
-import { fetchNotifications } from "../apis/notifications";
+import { useCallback, useEffect, useState } from "react";
+import { fetchNotifications } from "../api/notifications";
+import { Log } from "../utils/logger";
 
-export function useNotifications() {
+export default function useNotifications({
+  token,
+  page,
+  limit,
+  notificationType,
+}) {
   const [notifications, setNotifications] = useState([]);
-  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const loadNotifications = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      await Log("frontend", "info", "api", "Fetching notifications", token);
+
+      const data = await fetchNotifications({
+        token,
+        page,
+        limit,
+        notificationType,
+      });
+
+      const enriched = data.map((item, index) => ({
+        ...item,
+        isRead: index % 3 === 0, // temporary visual distinction for Stage 7 UI
+      }));
+
+      setNotifications(enriched);
+
+      await Log(
+        "frontend",
+        "info",
+        "api",
+        `Fetched ${enriched.length} notifications successfully`,
+        token,
+      );
+    } catch (err) {
+      setError(err.message || "Something went wrong");
+      await Log(
+        "frontend",
+        "error",
+        "api",
+        `Fetch failed: ${err.message}`,
+        token,
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [token, page, limit, notificationType]);
 
   useEffect(() => {
-    const load = async () => {
-      const data = await fetchNotifications();
-      setNotifications(data.notifications ?? []);
-    };
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadNotifications();
+  }, [loadNotifications]);
 
-    load();
-  }, [notifications]);
-
-  const totalPages = 0;
-
-  return { notifications, total, totalPages, loading: false, error: true };
+  return {
+    notifications,
+    loading,
+    error,
+    refetch: loadNotifications,
+  };
 }

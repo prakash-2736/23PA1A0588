@@ -1,7 +1,23 @@
-import { Log as BaseLog } from "../../../logging-middleware/index.js";
+const LOG_API_URL = "http://20.244.56.144/evaluation-service/logs";
 
-const FRONTEND_TOKEN = import.meta.env.VITE_AFFORD_TOKEN || "";
+export async function Log(stack, level, pkg, message, token) {
+  if (!token) return;
 
-export async function Log(stack, level, pkg, message) {
-  return BaseLog(stack, level, pkg, message, FRONTEND_TOKEN);
+  try {
+    await fetch(LOG_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        stack,
+        level,
+        package: pkg,
+        message,
+      }),
+    });
+  } catch (error) {
+    console.error("Frontend log failed:", error.message);
+  }
 }
